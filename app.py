@@ -34,8 +34,8 @@ with st.sidebar:
     use_mock = st.checkbox("Использовать mock-режим (без API)", value=True)
     
     if not use_mock:
-        ollama_url = st.text_input("Ollama URL")
-        llm_model = st.text_input("Модель")
+        ollama_url = st.text_input("Ollama URL", placeholder="Например: http://localhost:11434")
+        llm_model = st.text_input("Модель", placeholder="Например: llama3.1")
     
     st.subheader("Модель эмбеддингов")
     embedding_model = st.selectbox(
