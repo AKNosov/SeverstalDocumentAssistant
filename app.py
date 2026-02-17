@@ -34,11 +34,8 @@ with st.sidebar:
     use_mock = st.checkbox("Использовать mock-режим (без API)", value=True)
     
     if not use_mock:
-        openai_key = st.text_input("OpenAI API Key")
-        llm_model = st.selectbox("Модель", ['gpt-3.5-turbo', 'gpt-4-turbo'])
-    else:
-        openai_key = None
-        llm_model = 'gpt-3.5-turbo'
+        ollama_url = st.text_input("Ollama URL")
+        llm_model = st.text_input("Модель")
     
     st.subheader("Модель эмбеддингов")
     embedding_model = st.selectbox(
@@ -74,7 +71,7 @@ if index_button:
                     chunk_size=chunk_size,
                     chunk_overlap=chunk_overlap,
                     top_k=top_k,
-                    openai_api_key=openai_key,
+                    ollama_url=ollama_url,
                     llm_model=llm_model,
                     use_mock_llm=use_mock
                 )
@@ -170,5 +167,5 @@ with st.expander("Справка"):
     
     **Режимы работы:**
     - *Mock-режим* — генерация ответа без API (демонстрация)
-    - *OpenAI API* — реальная генерация через GPT
+    - *Ollama URL* — реальная генерация через Ollama
     """)

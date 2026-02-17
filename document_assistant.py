@@ -5,6 +5,9 @@ import numpy as np
 from typing import List, Dict, Tuple, Optional
 from pathlib import Path
 import warnings
+import requests
+
+
 warnings.filterwarnings('ignore')
 
 try:
@@ -14,10 +17,10 @@ except ImportError:
     SENTENCE_TRANSFORMERS_AVAILABLE = False
 
 try:
-    import openai
-    OPENAI_AVAILABLE = True
+    import requests
+    REQUESTS_AVAILABLE = True
 except ImportError:
-    OPENAI_AVAILABLE = False
+    REQUESTS_AVAILABLE = False
 
 try:
     from docx import Document
@@ -39,8 +42,8 @@ class DocumentAssistant:
         chunk_size: int = 500,
         chunk_overlap: int = 100,
         top_k: int = 3,
-        openai_api_key: Optional[str] = None,
-        llm_model: str = 'gpt-3.5-turbo',
+        ollama_url: Optional[str] = None,
+        llm_model: Optional[str] = None,
         use_mock_llm: bool = False
     ):
         self.chunk_size = chunk_size
@@ -58,12 +61,7 @@ class DocumentAssistant:
         else:
             raise ImportError("sentence-transformers не установлен. Установите: pip install sentence-transformers")
         
-        self.openai_api_key = openai_api_key 
-        if self.openai_api_key and OPENAI_AVAILABLE:
-            openai.api_key = self.openai_api_key
-            self.openai_client = openai.OpenAI(api_key=self.openai_api_key)
-        else:
-            self.openai_client = None
+        self.ollama_url = ollama_url
     
     def _extract_text_from_txt(self, file_path: str) -> str:
         with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
@@ -192,27 +190,38 @@ class DocumentAssistant:
         for i, chunk in enumerate(chunks, 1):
             response += f"{i}. {chunk[:200]}{'...' if len(chunk) > 200 else ''}\n\n"
         response += f"\nВопрос: {question}\n\n"
-        response += "Примечание: Это mock-ответ. Для получения реальных ответов настройте API-ключ OpenAI."
+        response += "Примечание: Это mock-ответ. Для получения реальных ответов настройте подключение к Ollama."
         
         return response
     
     def _call_llm(self, prompt: str) -> str:
-        if self.use_mock_llm or self.openai_client is None:
+        if self.use_mock_llm:
             return self._mock_llm_call(prompt)
-        
-        try:
-            response = self.openai_client.chat.completions.create(
-                model=self.llm_model,
-                messages=[
-                    {"role": "system", "content": "Вы полезный ассистент. Отвечайте только на основе предоставленных фрагментов документов."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.3,
-                max_tokens=1000
+        if not REQUESTS_AVAILABLE:
+            raise ImportError("Requests не установлен. Установите: pip install requests")
+        try:       
+            response = requests.post(
+                f"{self.ollama_url}/api/generate",
+                json={
+                    "model": self.llm_model,
+                    "prompt": prompt,
+                    "system": "Вы полезный ассистент. Отвечайте только на основе предоставленных фрагментов документов.",
+                    "stream": False,
+                    "options": {
+                        "temperature": 0.3,
+                        "max_tokens": 1000
+                    }
+                },
+                timeout=60
             )
-            return response.choices[0].message.content
+            
+            if response.status_code == 200:
+                return response.json()["response"]
+            else:
+                return f"[Ollama Error] {response.status_code}. Переключение на mock-режим...\n\n{self._mock_llm_call(prompt)}"
+                
         except Exception as e:
-            return f"[Ошибка LLM] {str(e)}. Переключение на mock-режим...\n\n{self._mock_llm_call(prompt)}"
+            return f"[Ollama Connection Error] {str(e)}. Убедитесь что Ollama запущена. Переключение на mock-режим...\n\n{self._mock_llm_call(prompt)}"
     
     def answer_query(self, query: str) -> Dict:
         relevant_chunks = self._find_relevant_chunks(query)
